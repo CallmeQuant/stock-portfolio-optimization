@@ -73,7 +73,7 @@ cd
 2. **Environment Setup**
 A typical process for installing the package dependencies involves creating a new Python virtual environment.
 ```console
-pip install git+https://github.com/tgcsaba/ksig.git --no-deps
+pip install git+https://github.com/CallmeQuant/stock-portfolio-optimization.git --no-deps
 pip install -r requirements.txt
 ```
 ### Running the Application
