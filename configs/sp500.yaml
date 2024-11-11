@@ -1,0 +1,8 @@
+input_dim: 1
+output_dim: 1
+hidden_dim: 50
+n_lags: 20
+n_flows: 20
+model_path: ".\\checkpoint\\model.pt"
+
+comment:

@@ -1,0 +1,11 @@
+datetime
+pandas
+streamlit
+plotly
+Pillow
+numpy
+scipy
+statsmodels
+matplotlib
+yfinance
+streamlit_shadcn_ui
