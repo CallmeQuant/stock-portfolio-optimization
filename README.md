@@ -148,8 +148,11 @@ Contributions are welcome! Please fork the repository and submit a pull request 
 ## Reference
 
 The generative models bases on work and official code of the following articles (with modifications):
+
 [1] Alaa, A., Chan, A. J., & van der Schaar, M. 2021. Generative time-series modeling with Fourier flows. In Proceedings of the International Conference on Learning Representations.
+
 [2] Yoon, J., Jarrett, D. and Van der Schaar, M., 2019. Time-series generative adversarial networks. Advances in neural information processing systems, 32. 
+
 [3] Lou, H., Tao, J., Dong, X., Xiao, B., Jiang, L., & Ni, H. (2023). Evaluation of time series generative models. GitHub. Retrieved from https://github.com/DeepIntoStreams/Evaluation-of-Time-Series-Generative-Models.git
 
 ## License
