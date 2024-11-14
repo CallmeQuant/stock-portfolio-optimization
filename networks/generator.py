@@ -1,6 +1,7 @@
 from unicodedata import bidirectional
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 from utils import init_weights
 from typing import Tuple
@@ -23,6 +24,18 @@ class GeneratorBase(nn.Module):
         x = self.pipeline.inverse_transform(x)
         return x
 
+# Sample model based on LSTM
+class GeneratorBase2(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(GeneratorBase2, self).__init__()
+        """ Generator base class. All generators should be children of this class. """
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+    def forward_(self, batch_size: int, n_lags: int, device: str):
+        """ Implement here generation scheme. """
+        # ...
+        pass
 
 class LSTMGenerator(GeneratorBase):
     def __init__(
@@ -152,3 +165,95 @@ class ResFNN(nn.Module):
             x = x.reshape(x.shape[0], -1)
         out = self.network(x)
         return out
+    
+class ConditionalLSTMGenerator(GeneratorBase2):
+    def __init__(self, input_dim: int, output_dim: int, hidden_dim: int,
+                 n_layers: int, init_fixed: bool = True):
+        super(ConditionalLSTMGenerator, self).__init__(input_dim, output_dim)
+        # LSTM
+        self.rnn = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim,
+                           num_layers=n_layers, batch_first=True)
+        self.linear = nn.Linear(hidden_dim, output_dim, bias=True)
+        self.linear.apply(init_weights)
+        # neural network to initialise h0 from the LSTM
+        # we put a tanh at the end because we are initialising h0 from the LSTM, that needs to take values between [-1,1]
+
+        self.init_fixed = init_fixed
+
+    def forward(self, batch_size: int, n_lags: int, device: str,
+                condition=None, z=None) -> torch.Tensor:
+        if self.init_fixed:
+            h0 = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.hidden_size).to(device)
+        else:
+            h0 = torch.randn(self.rnn.num_layers, batch_size, self.rnn.hidden_size).to(device).requires_grad_()
+
+        if condition is not None:
+            z = (0.1 * torch.randn(batch_size, n_lags, self.input_dim - condition.shape[-1])).to(device)
+            z[:, 0, :] *= 0
+            z = z.cumsum(1)
+            z = torch.cat([z, condition.unsqueeze(1).repeat((1, n_lags, 1))], dim=2)
+        else:
+            if z is None:
+                z = (0.1 * torch.randn(batch_size, n_lags, self.input_dim)).to(device)
+            z[:, 0, :] *= 0
+            z = z.cumsum(1)
+
+        c0 = torch.zeros_like(h0)
+        h1, _ = self.rnn(z, (h0, c0))
+        x = self.linear(h1)
+
+        assert x.shape[1] == n_lags
+        return x
+
+
+class ConditionalLSTMGeneratorConstraint(GeneratorBase2):
+    def __init__(self, input_dim: int, output_dim: int, hidden_dim: int,
+                 n_layers: int, init_fixed: bool = True, vol_activation: str = 'softplus'):
+        super(ConditionalLSTMGeneratorConstraint, self).__init__(input_dim, output_dim)
+        self.rnn = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim,
+                           num_layers=n_layers, batch_first=True)
+        self.linear = nn.Linear(hidden_dim, output_dim, bias=True)
+        self.linear.apply(init_weights)
+        self.init_fixed = init_fixed
+
+        # Activation function for volatility
+        if vol_activation == 'relu':
+            self.activation_fn = F.relu
+        elif vol_activation == 'softplus':
+            self.activation_fn = F.softplus
+        else:
+            raise ValueError("Unsupported activation. Choose 'relu' or 'softplus'.")
+
+    def forward(self, batch_size: int, n_lags: int, device: str,
+                condition=None, z=None) -> torch.Tensor:
+        if self.init_fixed:
+            h0 = torch.zeros(self.rnn.num_layers, batch_size, self.rnn.hidden_size).to(device)
+        else:
+            h0 = torch.randn(self.rnn.num_layers, batch_size, self.rnn.hidden_size).to(device).requires_grad_()
+
+        if condition is not None:
+            z = (0.1 * torch.randn(batch_size, n_lags, self.input_dim - condition.shape[-1])).to(device)
+            z[:, 0, :] *= 0
+            z = z.cumsum(1)
+            z = torch.cat([z, condition.unsqueeze(1).repeat((1, n_lags, 1))], dim=2)
+        else:
+            if z is None:
+                z = (0.1 * torch.randn(batch_size, n_lags, self.input_dim)).to(device)
+            z[:, 0, :] *= 0
+            z = z.cumsum(1)
+
+        c0 = torch.zeros_like(h0)
+        h1, _ = self.rnn(z, (h0, c0))
+        x = self.linear(h1)
+
+        # Ensure returns and volatility constraints
+        log_returns = x[..., ::2]
+        volatility = self.activation_fn(x[..., 1::2])
+
+        # Combine log returns and volatility back
+        final_out = torch.zeros_like(x)
+        final_out[..., ::2] = log_returns
+        final_out[..., 1::2] = volatility
+        assert final_out.shape[1] == n_lags
+
+        return final_out

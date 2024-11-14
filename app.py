@@ -14,14 +14,15 @@ from metrics import MetricsCalculator
 from risk import RiskMetrics
 
 # Generate market scenario 
-from generator import init_generator
-from utils import load_config, load_obj, to_numpy
+from utils import load_config_ml_col, to_numpy, load_and_initialize_model
 from data.sp500 import reconstruct_sequences, prepare_sp500_sequences
 from Generative.FourierFlow import FourierFlow
-from Forecasting.NODE import forecast_stock_prices, MappieWrapper, forecast_future_steps
+from Forecasting.NODE import forecast_stock_prices
+from networks.generator import ConditionalLSTMGenerator
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
-PATH_TO_CONFIG = ".\\configs\\sp500.yaml"
+PATH_TO_CONFIG = ".\\configs\\config_timegan.yaml"
+PATH_TO_MODEL = ".\\checkpoint\\model_dict.pt"
 
 def get_image_base64(image_path):
     """
@@ -384,9 +385,6 @@ def main():
         # Explanation for Hidden Dimension and Number of Flows
             model_parameters_info()
         
-        # Checkbox to retrain the model
-        retrain_model = st.checkbox("Retrain model with specified parameters")
-
         # Input for start date
         start_date = st.date_input(
             "Select the start date for training data (use for re-train only):",
@@ -395,83 +393,114 @@ def main():
             max_value=dt.date.today() - dt.timedelta(days=1)
         )
 
+        # Checkbox to retrain the model
+        retrain_model = st.checkbox("Retrain model with specified parameters")
+
         # Input for number of days
         max_days = n_lags
-        num_days = st.number_input(
-            "Enter the number of days to generate (max {} days):".format(max_days),
-            min_value=5,
-            max_value=max_days,
-            value=5,
-            step=1
-        )
+        if retrain_model:
+            num_days = st.number_input(
+                "Enter the number of days to generate (max {} days):".format(max_days),
+                min_value=5,
+                max_value=max_days,
+                value=5,
+                step=1
+            )
+        else:
+            num_days = st.number_input(
+                "Enter the number of days to generate:",
+                min_value=5,
+                value=5,
+                step=1
+            )
 
         # Button to generate the market scenario
         if st.button("Generate Market Scenario"):
             if retrain_model:
-                st.write("Retraining the model with specified choices...")
-                # Prepare training data
-                training_data, _, sp500_df = prepare_sp500_sequences(start=start_date,
-                                                                     sequence_length=n_lags, 
-                                                                     train_test_split=1.)
-                model = FourierFlow(
-                    input_dim=1,
-                    output_dim=1,
-                    hidden=hidden_dim,
-                    n_flows=n_flows,
-                    n_lags=n_lags,
-                    FFT=True,
-                    flip=True,
-                    normalize=False)
-                model.fit(training_data, epochs = 30, batch_size=128, display_step=10)
+                # st.write("Retraining the model with specified choices...")
+                with st.spinner("Retraining the model with specified choices..."):
+                    # Prepare training data
+                    training_data, _, sp500_df = prepare_sp500_sequences(start=start_date,
+                                                                        sequence_length=n_lags, 
+                                                                        train_test_split=1.)
+                    model = FourierFlow(
+                        input_dim=1,
+                        output_dim=1,
+                        hidden=hidden_dim,
+                        n_flows=n_flows,
+                        n_lags=n_lags,
+                        FFT=True,
+                        flip=True,
+                        normalize=False)
+                    model.fit(training_data, epochs=30, batch_size=128, display_step=10)
             else:
-                config = load_config(PATH_TO_CONFIG)
+                config = load_config_ml_col(PATH_TO_CONFIG)
                 _, _, sp500_df = prepare_sp500_sequences(train_test_split=1.)
-                model = init_generator(config)
+                model = ConditionalLSTMGenerator(
+                            input_dim=config.G_input_dim, 
+                            hidden_dim=config.G_hidden_dim, 
+                            output_dim=config.input_dim,
+                            n_layers=config.G_num_layers
+                        )
+                model = load_and_initialize_model(model, PATH_TO_MODEL, device='cpu')
+                model.eval()
 
             # Generate samples
-            num_samples = 5  # Number of samples to generate
-            generated_returns = to_numpy(model.sample(num_samples))  # Shape: (num_samples, n_lags, 1)
+            num_samples = 10  # Number of samples to generate
+            if retrain_model:
+                generated_returns = to_numpy(model.sample(num_samples))  # Shape: (num_samples, n_lags, 1)
+            else:
+                generated_returns = to_numpy(model(num_samples, num_days, device=config.device)) # Shape: (num_samples, num_days, 1)
+            
             sequence_length = generated_returns.shape[1]
 
-            total_generated_points = num_samples * sequence_length
-            generated_returns_re = reconstruct_sequences(generated_returns, step=sequence_length)
-
-            if num_days <= sequence_length:
-                # Use a single sample and take the first num_days time steps
-                selected_sample = generated_returns[:, :num_days, :]  # Shape: (num_days, 1)
+            # Reconstruct sequences based on retrain_model condition
+            if retrain_model:
+                generated_returns_re = reconstruct_sequences(generated_returns, step=sequence_length)
+                if num_days <= sequence_length:
+                    # Use a single sample and take the first num_days time steps
+                    selected_sample = generated_returns[:, :num_days, :]  # Shape: (num_days, 1)
+                else:
+                    st.warning("Requested number of days exceeds the maximum available length of generated data. Reducing number of days to {}.".format(max_days))
+                    num_days = max_days
+                    selected_sample = generated_returns_re[:, :num_days]
             else:
-                st.warning("Requested number of days exceeds the maximum available length of generated data. Reducing number of days to {}.".format(max_days))
-                num_days = max_days
-                # # Use multiple samples to reach the desired length
-                # if num_days > total_generated_points:
-                #     st.warning("Requested number of days exceeds the maximum available generated data. Reducing number of days to {}.".format(total_generated_points))
-                #     num_days = total_generated_points
-                # Take the first num_days points from the flattened array
-                selected_sample = generated_returns_re[:, :num_days]
+                selected_sample = generated_returns.copy()
 
             last_date_price = sp500_df['Adj Close'].iloc[-1]
             simulated_dates = pd.date_range(start=dt.date.today(), periods=num_days, freq='B')
-            # simulated_prices = np.exp(np.cumsum(selected_sample)) * last_date_price
+            # Calculate the simulated prices
             simulated_prices = np.exp(np.cumsum(selected_sample, axis=1)) * last_date_price
 
-            # simulated_df = pd.DataFrame({'Date': simulated_dates, 'Simulated S&P 500': simulated_prices})
-            # simulated_df.set_index('Date', inplace=True)
-            # st.success("Market scenario generated successfully.")
-
+            # Create a DataFrame for the simulated prices
             simulated_df = pd.DataFrame({'Date': simulated_dates})
             for i in range(num_samples):
                 simulated_df[f'Sample {i+1}'] = simulated_prices[i, :]
             simulated_df.set_index('Date', inplace=True)
             st.success("Market scenario generated successfully.")
             
-            # fig = px.line(
-            #     simulated_df,
-            #     x=simulated_df.index,
-            #     y='Simulated S&P 500',
-            #     title='Simulated S&P 500 Index',
-            #     labels={'x': 'Date', 'Simulated S&P 500': 'Price'},
-            # )
+            # Reshape generated returns for plotting
+            reshaped_returns = selected_sample.squeeze(-1)  # Shape: (num_samples, num_days)
 
+            # Plot Generated Returns
+            returns_df = pd.DataFrame(reshaped_returns.T, columns=[f'Sample {i+1}' for i in range(num_samples)])
+            returns_df['Date'] = simulated_dates
+            returns_df.set_index('Date', inplace=True)
+            
+            fig_returns = px.line(
+                            returns_df,
+                            x=returns_df.index,
+                            y=returns_df.columns,
+                            title='Generated Returns',
+                            labels={'variable': 'Sample', 'value': 'Return'},
+                        )
+            fig_returns.update_layout(
+                xaxis_title='Date',
+                yaxis_title='Generated S&P 500 Return',
+                margin=dict(t=50, b=0, l=0, r=0),
+            )
+            st.plotly_chart(fig_returns, use_container_width=False)
+            
             fig = px.line(
                         simulated_df,
                         x=simulated_df.index,
@@ -751,98 +780,6 @@ def main():
                             }),
                             height=200  # Adjust this value based on your needs
                         )
-
-        # # Button to start forecast
-        # if st.button("Run Stock Price Forecast"):
-        #     if not stock_list:
-        #         # st.error("Please enter at least one stock symbol.")
-        #         st.error("Please enter one stock symbol.")
-        #     else:
-        #         with st.spinner("Running stock price forecast..."):
-        #             alpha = 1 - (confidence_level / 100)
-        #             predicted_prices, actual_prices, \
-        #                 lower_bound, upper_bound, test_dates,\
-        #                      coverage, width, cwc = forecast_stock_prices(
-        #             stock_symbols.upper(),
-        #             start_date,
-        #             end_date,
-        #             alpha = alpha
-        #         )
-                    
-        #             if all(x is not None for x in [predicted_prices, actual_prices, 
-        #                                            lower_bound, upper_bound, test_dates,
-        #                                            coverage, width, cwc]):
-        #                 # Create DataFrame for plotting
-        #                 df = pd.DataFrame({
-        #                     'Actual': actual_prices.flatten(),
-        #                     'Predicted': predicted_prices.flatten()
-        #                 }, index=(test_dates[-len(actual_prices):]))
-                
-        #                 # Calculate metrics
-        #                 mae = mean_absolute_error(actual_prices, predicted_prices)
-        #                 rmse = np.sqrt(mean_squared_error(actual_prices, predicted_prices))
-                        
-        #                 # Display metrics
-        #                 col1, col2, col3, col4, col5 = st.columns(5)
-        #                 col1.metric("MAE", f"{mae:.2f}")
-        #                 col2.metric("RMSE", f"{rmse:.2f}")
-        #                 col3.metric("Coverage Score", f"{coverage:.2f}")
-        #                 col4.metric("Width Score", f"{width:.2f}")
-        #                 col5.metric("Coverage-Width", f"{cwc:.2f}")
-        #                 with st.expander("View Forecast Metrics"):
-        #                     forecast_metrics_info()
-
-        #                 fig = go.Figure()
-        #                 # Add actual prices
-        #                 fig.add_trace(go.Scatter(
-        #                     x=test_dates[-len(actual_prices):],
-        #                     y=actual_prices.flatten(),
-        #                     name="Actual",
-        #                     line=dict(color="blue")
-        #                 ))
-                        
-        #                 # Add predicted prices
-        #                 fig.add_trace(go.Scatter(
-        #                     x=test_dates[-len(actual_prices):],
-        #                     y=predicted_prices.flatten(),
-        #                     name="Predicted",
-        #                     line=dict(color="red")
-        #                 ))
-                        
-        #                 # Add prediction intervals
-        #                 fig.add_trace(go.Scatter(
-        #                     x=test_dates[-len(actual_prices):].tolist() \
-        #                         + test_dates[-len(actual_prices):].tolist()[::-1],
-        #                     y=np.concatenate([upper_bound.flatten(), lower_bound.flatten()[::-1]]),
-        #                     fill='toself',
-        #                     fillcolor='rgba(0,100,255,0.2)',
-        #                     line=dict(color='rgba(255,255,255,0)'),
-        #                     name=f'{confidence_level}% Prediction Interval'
-        #                 ))
-                        
-        #                 fig.update_layout(
-        #                     title=f'{stock_symbols} Stock Price Forecast with {confidence_level}% Prediction Intervals',
-        #                     xaxis_title="Date",
-        #                     yaxis_title="Price ($)",
-        #                     showlegend=True,
-        #                     margin=dict(t=50, b=0, l=0, r=0),
-        #                 )
-                        
-        #                 st.plotly_chart(fig, use_container_width=True)
-                        # # Create plot
-                        # fig = px.line(
-                        #     df,
-                        #     x=df.index,
-                        #     y=['Actual', 'Predicted'],
-                        #     title=f'{stock_symbols} Stock Price Forecast',
-                        #     labels={'value': 'Price ($)', 'Date': 'Date'},
-                        # )
-                        # fig.update_layout(
-                        #     showlegend=True,
-                        #     margin=dict(t=50, b=0, l=0, r=0),
-                        # )
-                        # st.plotly_chart(fig, use_container_width=True)
-                        
                         st.success("Forecast completed successfully!")
         
 if __name__ == "__main__":

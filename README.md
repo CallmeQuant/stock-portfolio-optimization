@@ -2,6 +2,7 @@
 # Portfolio Optimization Dashboard
 
 The **Stock Portfolio Optimization** application utilizes a variety of advanced optimization techniques and supportive tools to enhance portfolio performance. With interactive visualizations of the efficient frontier and key portfolio metrics, it delivers an intuitive and user-friendly experience through its web-hosted Streamlit interface.
+
 ## Optimization Strategies
 
 **Sharpe Ratio**  
@@ -41,71 +42,22 @@ Focuses on reducing potential extreme losses by considering worst-case scenarios
 Allocates risk among assets by minimizing the sum of individual entropic drawdowns, focusing on managing potential severe declines in asset values. EDAR measures the worst-case drawdown in a conservative manner, capturing extreme negative movements. This strategy ensures that each asset's risk is budgeted according to predefined levels, promoting a diversified and risk-aware portfolio.
 
 ## Other Tools
+
 ### **Market Scenario Generation**
-Generate market scenarios for the S&P 500 index using *flow models*. This feature allows investors to simulate various market conditions, aiding in robust portfolio planning and stress testing.
+
+Generate market scenarios for the S&P 500 index using *flow models* [1] and Time-GAN [2]. This feature allows investors to simulate various market conditions, aiding in robust portfolio planning and stress testing.
 
 ### **Stock Price Forecasting**
+
 Forecast stock prices using *Neural Ordinary Differential Equations* (Neural ODE) integrated with forecast intervals constructed by *Adaptive Conformal Inference*. Currently supports *univariate forecasting*, providing investors with predictive insights and uncertainty estimates to inform decision-making.
 
-## Features
-
-- **Interactive Efficient Frontier**: Visualize the trade-off between risk and return for different portfolio allocations.
-- **Key Portfolio and Forecast Metrics**: Access comprehensive metrics to evaluate and compare portfolio performance, forecast accuracy and uncertainty quantification.
-- **User-Friendly Interface**: Navigate the application effortlessly with Streamlit's intuitive design.
-- **Multiple Optimization Techniques**: Choose from a variety of strategies to tailor the portfolio to your investment goals and risk tolerance.
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.7 or higher
-- Streamlit
-- Required Python libraries (listed in `requirements.txt`)
-
-### Installation
-
-1. **Clone the Repository**
-```bash
-git clone
-cd
- ```
-
-2. **Environment Setup**
-A typical process for installing the package dependencies involves creating a new Python virtual environment.
-```console
-pip install git+https://github.com/tgcsaba/ksig.git --no-deps
-pip install -r requirements.txt
-```
-### Running the Application
-
-Start the Streamlit application with the following command:
-
-```bash
-streamlit run app.py
-```
-
-Open your web browser and navigate to the URL provided in the terminal to access the dashboard.
-
-## Contributing
-
-Contributions are welcome! Please fork the repository and submit a pull request with your enhancements.
-
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Contact
-
-For any inquiries or support, please contact [binhho660@gmail.com](mailto:binhho660@gmail.com).
-
 ## Assumptions
-**Historical Returns as Predictors**: The model assumes that past returns indicate future performance, using historical data to estimate expected returns based on observed patterns.
 
-**No Transaction Costs**: The model assumes there are no transaction costs or taxes related to buying, selling, or rebalancing assets, which may lead to less realistic outcomes.
-
-**Full Investment**: It assumes that all available capital is fully invested, with no cash reserves, eliminating considerations of cash drag or liquidity.
-
-**Fixed Time Horizon**: The model operates on a fixed investment period, assuming that the investor’s objectives and risk tolerance remain constant, regardless of market changes.
+The portfolio allocation models depend on on various assumptions, which oftens restrict theirs usefulness in practical applications:
+- **Historical Returns as Predictors**: The model assumes that past returns indicate future performance, using historical data to estimate expected returns based on observed patterns.
+- **No Transaction Costs**: The model assumes there are no transaction costs or taxes related to buying, selling, or rebalancing assets, which may lead to less realistic outcomes.
+- **Full Investment**: It assumes that all available capital is fully invested, with no cash reserves, eliminating considerations of cash drag or liquidity.
+- **Fixed Time Horizon**: The model operates on a fixed investment period, assuming that the investor’s objectives and risk tolerance remain constant, regardless of market changes.
 
 ## Features
 
@@ -122,13 +74,88 @@ The Efficient Frontier is visualized as a curve representing the optimal set of 
 
 ![Efficient Frontier](example.png)
 
-## Usage
+## Getting Started
+
+### Prerequisites
+
+- Python 3.8 or higher
+- Required Python libraries (listed in `requirements.txt`)
+
+### Installation
+
+Follow these steps to clone the repository and set up the required environment.
+
+## 1. **Clone the Repository**
+
+First, clone the repository to your local machine and navigate into the project directory.
+
+```console
+git clone https://github.com/CallmeQuant/stock-portfolio-optimization.git
+cd stock-portfolio-optimization
+```
+
+## 2. **Environment Setup**
+
+To install the necessary package dependencies, set up a Python virtual environment (e.g., using Conda or `venv`) and install the required packages.
+
+### Create and activate a virtual environment (optional)
+
+If you’re using Conda:
+
+```console
+conda create -n portfolio-optimization python=3.8
+conda activate portfolio-optimization
+```
+
+Or using `venv`:
+
+```console
+python -m venv venv
+source venv/bin/activate  # On Windows use: venv\Scripts\activate
+```
+
+### Install dependencies
+
+Install the specific package and other required packages listed in `requirements.txt`.
+
+```console
+pip install -r requirements.txt
+```
+
+### Running the Application
+
+Start the Streamlit application with the following command:
+
+```console
+streamlit run app.py
+```
+
+Open your web browser and navigate to the URL provided in the terminal to access the dashboard.
+
+<!-- ## Usage
 See full instructions in the [docs](./install.md)
 <!-- 
 1. 
 2. Enter your tickers, start and end dates, and risk-free rate in the input fields.
 3. Select an optimization strategy from the dropdown menu.
 4. Click the "Calculate" button to generate your optimized portfolio.
-5. Explore the various tabs to view performance metrics, visualizations, and risk analysis for your portfolio. -->
+5. Explore the various tabs to view performance metrics, visualizations, and risk analysis for your portfolio. --> 
 
+## Contributing
 
+Contributions are welcome! Please fork the repository and submit a pull request with your enhancements.
+
+## Reference
+
+The generative models bases on work and official code of the following articles (with modifications):
+[1] Alaa, A., Chan, A. J., & van der Schaar, M. 2021. Generative time-series modeling with Fourier flows. In Proceedings of the International Conference on Learning Representations.
+[2] Yoon, J., Jarrett, D. and Van der Schaar, M., 2019. Time-series generative adversarial networks. Advances in neural information processing systems, 32. 
+[3] Lou, H., Tao, J., Dong, X., Xiao, B., Jiang, L., & Ni, H. (2023). Evaluation of time series generative models. GitHub. Retrieved from https://github.com/DeepIntoStreams/Evaluation-of-Time-Series-Generative-Models.git
+
+## License
+
+This project is licensed under the [MIT](LICENSE).
+
+## Contact
+
+For any inquiries or support, please contact [binhho660@gmail.com](mailto:binhho660@gmail.com).

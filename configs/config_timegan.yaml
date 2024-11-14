@@ -1,0 +1,60 @@
+# General configuration
+device: cpu
+seed: 0
+gpu_id: "1"
+train: True
+n_lags: 20
+
+data_dir: 'data/'
+
+# algo: RCGAN
+algo: TIMEGAN
+generator: LSTM
+discriminator: LSTM
+
+# hyperparameters:
+lr_G: 0.002
+lr_D: 0.003
+D_steps_per_G_step: 3
+batch_size: 64
+steps: 1000
+
+# generator hyperparameters:
+G_input_dim: 128 # Noise dimension
+G_hidden_dim: 64
+G_num_layers: 2
+
+# discriminator hyperparameters:
+D_hidden_dim: 32
+D_num_layers: 3
+
+# Additional parameters
+input_dim: 1
+include_D: False
+vol_activation: 'softplus'
+
+# Weights for different components
+acf_weight: 1.0
+mean_weight: 1.0
+std_weight: 1.0
+corr_weight: 1.0
+cov_weight: 1.0
+hist_weight: 1.0
+var_weight: 1.0
+es_weight: 1.0
+
+# Enable/disable specific losses
+use_acf_loss: True
+use_mean_loss: True
+use_std_loss: True
+use_corr_loss: True
+use_cov_loss: True
+use_hist_loss: True
+use_var_loss: True
+use_es_loss: True
+
+# Additional loss-related parameters
+max_lag: 50
+hist_bins: 50
+var_alpha: 0.05
+es_alpha: 0.05
