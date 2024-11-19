@@ -153,8 +153,6 @@ The generative models bases on work and official code of the following articles 
 
 [2] Yoon, J., Jarrett, D. and Van der Schaar, M., 2019. Time-series generative adversarial networks. Advances in neural information processing systems, 32. 
 
-[3] Lou, H., Tao, J., Dong, X., Xiao, B., Jiang, L., & Ni, H. (2023). Evaluation of time series generative models. GitHub. Retrieved from https://github.com/DeepIntoStreams/Evaluation-of-Time-Series-Generative-Models.git
-
 ## License
 
 This project is licensed under the [MIT](LICENSE).
